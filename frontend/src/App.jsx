@@ -1,88 +1,121 @@
-import { useState, useEffect } from "react";
+﻿import { useEffect, useState } from "react";
 import axios from "axios";
-import { Activity } from "lucide-react";
-import LLMPanel from "./components/LLMPanel";
-import PredictionPanel from "./components/PredictionPanel";
-import ZoneRiskPanel from "./components/ZoneRiskPanel";
-import StaffPanel from "./components/StaffPanel";
+import { Activity, PlayCircle, Radio } from "lucide-react";
+import { API_BASE } from "./config";
+import { DEMO_CONFIG, DEMO_FRAMES } from "./demoData";
+import BEVHeatmap from "./components/BEVHeatmap";
+import CalibrationModal from "./components/CalibrationModal";
 import LiveCamera from "./components/LiveCamera";
-import GuardTracker from "./components/GuardTracker";
-
-const API_BASE = "http://localhost:8000";
+import LLMPanel from "./components/LLMPanel";
+import PhysicsPanel from "./components/PhysicsPanel";
 
 function App() {
-  const [crowdData, setCrowdData] = useState(null);
-  const [predictionData, setPredictionData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
+  const [demoMode, setDemoMode] = useState(false);
+  const [demoIdx, setDemoIdx] = useState(0);
+  const [liveTelemetry, setLiveTelemetry] = useState(null);
+  const [config, setConfig] = useState(DEMO_CONFIG);
+  const [offline, setOffline] = useState(false);
+  const [showCalibrate, setShowCalibrate] = useState(false);
 
-  // Fetch Live System Status
   useEffect(() => {
-    const fetchData = async () => {
+    if (demoMode) return undefined;
+    let active = true;
+
+    const loadConfig = async () => {
       try {
-        const [crowdRes, predRes] = await Promise.all([
-          axios.get(`${API_BASE}/crowd-data`),
-          axios.get(`${API_BASE}/prediction`)
-        ]);
-        setCrowdData(crowdRes.data);
-        setPredictionData(predRes.data);
-        setError(false);
-      } catch (err) {
-        console.error("API Error", err);
-        setError(true);
-      } finally {
-        setLoading(false);
+        const res = await axios.get(`${API_BASE}/api/config`);
+        if (active) setConfig(res.data);
+      } catch {
+        // Keep fallback config until backend is online
       }
     };
 
-    // Initial fetch
-    fetchData();
+    const pollTelemetry = async () => {
+      try {
+        const res = await axios.get(`${API_BASE}/api/telemetry`);
+        if (active) {
+          setLiveTelemetry(res.data);
+          setOffline(false);
+        }
+      } catch {
+        if (active) setOffline(true);
+      }
+    };
 
-    // 2-second automated interval
-    const interval = setInterval(fetchData, 2000);
-    return () => clearInterval(interval);
-  }, []);
+    loadConfig();
+    pollTelemetry();
+    const timer = setInterval(pollTelemetry, 1500);
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, [demoMode]);
+
+  useEffect(() => {
+    if (!demoMode) return undefined;
+    const timer = setInterval(() => {
+      setDemoIdx((prev) => (prev + 1) % DEMO_FRAMES.length);
+    }, 2500);
+    return () => clearInterval(timer);
+  }, [demoMode]);
+
+  const telemetry = demoMode ? DEMO_FRAMES[demoIdx] : liveTelemetry || DEMO_FRAMES[0];
 
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100 p-4 font-sans">
+      <header className="mb-5 flex flex-wrap items-center gap-3 pb-3 border-b border-slate-700">
+        <Activity className="h-7 w-7 text-emerald-400" />
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">AegisAI v2 Crowd Safety Control Room</h1>
+          <p className="text-xs text-slate-400">{telemetry.venue_name} • Self-Hosted Edge Physics Engine</p>
+        </div>
 
-      {/* Header */}
-      <header className="mb-6 flex items-center gap-3 pb-4 border-b border-slate-700">
-        <Activity className="h-8 w-8 text-blue-500" />
-        <h1 className="text-3xl font-bold tracking-tight">AI Crowd Intelligence Control Room</h1>
-        {error && <span className="ml-auto text-red-500 text-sm animate-pulse">Connection Lost</span>}
+        <div className="ml-auto flex items-center gap-3">
+          {offline && !demoMode && (
+            <span className="text-xs text-amber-400">Local backend offline — switch to Demo Playback</span>
+          )}
+          <button
+            onClick={() => setDemoMode((m) => !m)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors ${
+              demoMode
+                ? "bg-sky-500/20 text-sky-300 border-sky-500/40"
+                : "bg-emerald-500/20 text-emerald-300 border-emerald-500/40"
+            }`}
+          >
+            {demoMode ? <PlayCircle className="w-4 h-4" /> : <Radio className="w-4 h-4" />}
+            {demoMode ? "Mode: Demo Playback" : "Mode: Live Self-Hosted"}
+          </button>
+        </div>
       </header>
 
-      {/* Grid Layout - 3 Columns */}
-      <main className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-        {/* Left Column */}
-        <div className="flex flex-col gap-6">
-          <div className="flex-1">
-            <LLMPanel />
-          </div>
-          <div>
-            <PredictionPanel data={predictionData} loading={loading} />
-          </div>
+      <main className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        <div className="flex flex-col gap-5">
+          <PhysicsPanel telemetry={telemetry} />
+          <LLMPanel telemetry={telemetry} demoMode={demoMode} />
         </div>
 
-        {/* Center Column */}
-        <div className="flex flex-col gap-6">
-          <div className="flex-1">
-            <ZoneRiskPanel data={crowdData} loading={loading} />
-          </div>
-          <div>
-            <StaffPanel data={crowdData} loading={loading} />
-          </div>
+        <div className="flex flex-col gap-5">
+          <BEVHeatmap telemetry={telemetry} config={config} />
         </div>
 
-        {/* Right Column */}
-        <div className="flex flex-col h-full">
-          <LiveCamera totalPeople={crowdData?.total_people} />
-          <GuardTracker data={crowdData} loading={loading} />
+        <div className="flex flex-col gap-5">
+          <LiveCamera
+            totalPeople={telemetry.total_people}
+            demoMode={demoMode}
+            onOpenCalibrate={() => setShowCalibrate(true)}
+          />
         </div>
-
       </main>
+
+      {showCalibrate && (
+        <CalibrationModal
+          key="calibration-modal"
+          config={config}
+          demoMode={demoMode}
+          onClose={() => setShowCalibrate(false)}
+          onSaved={(updated) => setConfig(updated)}
+        />
+      )}
     </div>
   );
 }

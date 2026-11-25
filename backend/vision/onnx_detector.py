@@ -26,7 +26,7 @@ class ONNXPersonDetector:
     def _letterbox(self, frame: np.ndarray) -> tuple[np.ndarray, float, tuple[int, int]]:
         h, w = frame.shape[:2]
         scale = min(self.imgsz / w, self.imgsz / h)
-        nw, nh = int(round(w * scale)), int(round(h * scale))
+        nw, nh = round(w * scale), round(h * scale)
         resized = cv2.resize(frame, (nw, nh), interpolation=cv2.INTER_LINEAR)
 
         pad_w, pad_h = (self.imgsz - nw) // 2, (self.imgsz - nh) // 2
@@ -48,7 +48,7 @@ class ONNXPersonDetector:
         if outputs.ndim == 3 and outputs.shape[-1] == 6:
             for row in outputs[0]:
                 x1, y1, x2, y2, score, cls_id = row
-                if score < self.conf_threshold or int(round(cls_id)) != 0:
+                if score < self.conf_threshold or round(float(cls_id)) != 0:
                     continue
                 bx1 = int(np.clip((x1 - pad_w) / scale, 0, w - 1))
                 by1 = int(np.clip((y1 - pad_h) / scale, 0, h - 1))
@@ -92,3 +92,4 @@ def blur_heads(frame: np.ndarray, boxes: list[tuple[int, int, int, int]]) -> np.
         if roi.size > 0:
             frame[y1:head_y2, x1:x2] = cv2.GaussianBlur(roi, (23, 23), 15)
     return frame
+

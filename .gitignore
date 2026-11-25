@@ -10,3 +10,6 @@ frontend/node_modules/
 frontend/dist/
 .env
 *.db
+
+*.pt
+aegis_code_bundle.txt

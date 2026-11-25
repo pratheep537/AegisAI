@@ -60,7 +60,8 @@ class OpsCopilot:
             )
             if resp.status_code == 200:
                 return resp.json()["choices"][0]["message"]["content"].strip()
-        except Exception as exc:
+        except (requests.RequestException, KeyError, ValueError) as exc:
             print(f"[OpsCopilot] LLM offline ({exc}); serving deterministic physics briefing.")
 
         return self._fallback_briefing(telemetry)
+
