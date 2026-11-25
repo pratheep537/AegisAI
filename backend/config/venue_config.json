@@ -1,0 +1,67 @@
+{
+  "venue_id": "stadium-gate-north",
+  "venue_name": "North Concourse & Exit Tunnel",
+  "camera": {
+    "source": "backend/data/crowd_video.mp4",
+    "target_fps": 5,
+    "privacy_blur_faces": true
+  },
+  "calibration": {
+    "image_points_px": [
+      [180, 260],
+      [1100, 260],
+      [1240, 690],
+      [40, 690]
+    ],
+    "world_size_meters": {
+      "width": 12.0,
+      "height": 18.0
+    }
+  },
+  "thresholds": {
+    "elevated_density_pm2": 2.0,
+    "high_density_pm2": 3.5,
+    "critical_density_pm2": 5.0,
+    "turbulence_pressure_limit": 0.02,
+    "ttcd_warning_minutes": 3.0
+  },
+  "zones": [
+    {
+      "id": "chokepoint_tunnel",
+      "name": "Exit Tunnel B",
+      "polygon_meters": [
+        [2.0, 4.0],
+        [10.0, 4.0],
+        [10.0, 12.0],
+        [2.0, 12.0]
+      ],
+      "area_m2": 64.0,
+      "upstream_gates": ["Gate N1", "Gate N2"],
+      "relief_exits": ["Emergency Corridor E3"]
+    }
+  ],
+  "tripwires": [
+    {
+      "id": "inflow_north",
+      "zone_id": "chokepoint_tunnel",
+      "direction": "in",
+      "line_meters": [
+        [2.0, 4.0],
+        [10.0, 4.0]
+      ]
+    },
+    {
+      "id": "outflow_south",
+      "zone_id": "chokepoint_tunnel",
+      "direction": "out",
+      "line_meters": [
+        [2.0, 12.0],
+        [10.0, 12.0]
+      ]
+    }
+  ],
+  "alerts": {
+    "webhook_url": "",
+    "cooldown_seconds": 60
+  }
+}
