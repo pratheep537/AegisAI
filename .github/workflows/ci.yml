@@ -1,4 +1,4 @@
-﻿name: AegisAI CI
+name: AegisAI CI
 
 on:
   push:

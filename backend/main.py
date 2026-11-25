@@ -11,9 +11,9 @@ from typing import Any
 import cv2
 import numpy as np
 import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel
 
 BACKEND_DIR = Path(__file__).resolve().parent
@@ -108,26 +108,53 @@ def _vision_worker() -> None:
         if cam_cfg.get("privacy_blur_faces", True) and boxes:
             frame = blur_heads(frame, boxes)
 
-        persons: list[TrackedPerson] = []
-        for tid, (x1, y1, x2, y2) in tracked:
-            persons.append(TrackedPerson(track_id=tid, foot_u=(x1 + x2) / 2.0, foot_v=float(y2)))
-            cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 255), 2)
-            cv2.putText(
-                frame, f"#{tid}", (x1, max(16, y1 - 6)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 1
-            )
+        persons: list[TrackedPerson] = [
+            TrackedPerson(track_id=tid, foot_u=(x1 + x2) / 2.0, foot_v=float(y2))
+            for tid, (x1, y1, x2, y2) in tracked
+        ]
 
         with state.lock:
             telemetry = state.physics.update(persons, time.time())
             state.telemetry = telemetry
+            in_zone_map = {pt["id"]: pt.get("in_zone", False) for pt in telemetry["bev_points"]}
 
+            # Draw calibrated floor quad (subtle green)
             cal_pts = np.array(state.config["calibration"]["image_points_px"], dtype=np.int32)
-            cv2.polylines(frame, [cal_pts], isClosed=True, color=(16, 185, 129), thickness=2)
+            cv2.polylines(frame, [cal_pts], isClosed=True, color=(80, 180, 120), thickness=1)
+
+            # Project exact cyan monitored zone(s) back onto the camera view
+            for z in state.config.get("zones", []):
+                z_px = np.array(
+                    [state.physics.meters_to_pixel(xm, ym) for xm, ym in z["polygon_meters"]],
+                    dtype=np.int32,
+                )
+                cv2.polylines(frame, [z_px], isClosed=True, color=(248, 189, 56), thickness=2)
+
+            # Project exact inflow (amber) & outflow (emerald) tripwires onto camera view
+            for tw in state.config.get("tripwires", []):
+                p1 = state.physics.meters_to_pixel(*tw["line_meters"][0])
+                p2 = state.physics.meters_to_pixel(*tw["line_meters"][1])
+                color = (11, 158, 245) if tw["direction"] == "in" else (129, 185, 16)
+                cv2.line(frame, p1, p2, color, 3)
+
+            # Draw person boxes matching BEV dot colors (cyan = inside zone, yellow = outside)
+            for tid, (x1, y1, x2, y2) in tracked:
+                is_in = in_zone_map.get(tid, False)
+                box_color = (248, 189, 56) if is_in else (0, 220, 255)
+                cv2.rectangle(frame, (x1, y1), (x2, y2), box_color, 2)
+                cv2.circle(frame, ((x1 + x2) // 2, y2), 4, box_color, -1)
+                cv2.putText(
+                    frame, f"#{tid}", (x1, max(16, y1 - 6)), cv2.FONT_HERSHEY_SIMPLEX, 0.55, box_color, 2
+                )
+
+            # Crisp dark HUD badge at top-left
+            cv2.rectangle(frame, (12, 12), (430, 52), (15, 23, 42), -1)
             cv2.putText(
                 frame,
-                f"Risk: {telemetry['overall_risk']} | People: {telemetry['total_people']}",
-                (20, 40),
+                f"Risk: {telemetry['overall_risk']} | Tracked: {telemetry['total_people']}",
+                (22, 40),
                 cv2.FONT_HERSHEY_SIMPLEX,
-                0.9,
+                0.8,
                 (16, 185, 129),
                 2,
             )
@@ -192,25 +219,56 @@ async def ask_ai(request: AskRequest):
     return {"response": answer}
 
 
-async def _mjpeg_generator():
-    while True:
+@app.get("/api/frame")
+def get_frame():
+    state.touch_client()
+    with state.lock:
+        frame = None if state.latest_frame is None else state.latest_frame.copy()
+    if frame is None:
+        return Response(status_code=204)
+    ok, buf = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 75])
+    if not ok:
+        return Response(status_code=500)
+    return Response(
+        content=buf.tobytes(),
+        media_type="image/jpeg",
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+async def _mjpeg_generator(request: Request):
+    while not state.stop_event.is_set():
+        if await request.is_disconnected():
+            break
         state.touch_client()
         with state.lock:
             frame = None if state.latest_frame is None else state.latest_frame.copy()
         if frame is None:
-            await asyncio.sleep(0.15)
+            await asyncio.sleep(0.1)
             continue
-        ok, buf = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 65])
+        ok, buf = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 70])
         if ok:
-            yield b"--frame\r\nContent-Type: image/jpeg\r\n\r\n" + buf.tobytes() + b"\r\n"
-        await asyncio.sleep(0.15)
+            data = buf.tobytes()
+            yield (
+                b"--frame\r\n"
+                b"Content-Type: image/jpeg\r\n"
+                b"Content-Length: " + str(len(data)).encode() + b"\r\n\r\n"
+                + data
+                + b"\r\n"
+            )
+        await asyncio.sleep(0.1)
 
 
 @app.get("/video-feed")
-async def video_feed():
+async def video_feed(request: Request):
     return StreamingResponse(
-        _mjpeg_generator(),
+        _mjpeg_generator(request),
         media_type="multipart/x-mixed-replace; boundary=frame",
+        headers={
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Pragma": "no-cache",
+            "Expires": "0",
+        },
     )
 
 

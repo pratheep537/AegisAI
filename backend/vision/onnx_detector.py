@@ -6,12 +6,13 @@ import onnxruntime as ort
 
 
 class ONNXPersonDetector:
-    """Runs YOLO26n (end-to-end NMS-free) or standard YOLO ONNX models without PyTorch."""
+    """Runs YOLO26n (NMS-free or raw 84-channel) ONNX models without PyTorch."""
 
-    def __init__(self, model_path: str | Path, conf_threshold: float = 0.25, imgsz: int = 640):
+    def __init__(self, model_path: str | Path, conf_threshold: float = 0.15, imgsz: int = 640):
         self.model_path = str(model_path)
         self.conf_threshold = conf_threshold
         self.imgsz = imgsz
+        self._logged_shape = False
 
         available = ort.get_available_providers()
         providers = (
@@ -42,12 +43,18 @@ class ONNXPersonDetector:
         blob, scale, (pad_w, pad_h) = self._letterbox(frame)
         outputs = self.session.run(None, {self.input_name: blob})[0]
 
+        if not self._logged_shape:
+            print(f"[ONNXDetector] Output shape={outputs.shape}, min={outputs.min():.3f}, max={outputs.max():.3f}")
+            self._logged_shape = True
+
         boxes: list[tuple[int, int, int, int]] = []
 
-        # End-to-end NMS-free YOLO26n output: (1, 300, 6) -> [x1, y1, x2, y2, score, cls]
+        # Case 1: End-to-end NMS-free output -> (1, N, 6) [x1, y1, x2, y2, score, cls]
         if outputs.ndim == 3 and outputs.shape[-1] == 6:
-            for row in outputs[0]:
-                x1, y1, x2, y2, score, cls_id = row
+            rows = outputs[0].copy()
+            if rows.size > 0 and float(np.max(rows[:, :4])) <= 1.5:
+                rows[:, :4] *= self.imgsz
+            for x1, y1, x2, y2, score, cls_id in rows:
                 if score < self.conf_threshold or round(float(cls_id)) != 0:
                     continue
                 bx1 = int(np.clip((x1 - pad_w) / scale, 0, w - 1))
@@ -58,12 +65,22 @@ class ONNXPersonDetector:
                     boxes.append((bx1, by1, bx2, by2))
             return boxes
 
-        # Standard YOLO output: (1, 84, N)
-        preds = outputs[0].T
-        person_scores = preds[:, 4]
-        mask = person_scores >= self.conf_threshold
-        filtered = preds[mask]
+        # Case 2: Standard YOLO output -> (1, 84, N) or (1, N, 84)
+        raw = outputs[0]
+        preds = raw.T if raw.shape[0] < raw.shape[1] else raw
+        class_scores = preds[:, 4:]
+        if float(np.max(class_scores)) > 1.0 or float(np.min(class_scores)) < 0.0:
+            class_scores = 1.0 / (1.0 + np.exp(-np.clip(class_scores, -20.0, 20.0)))
+
+        person_scores = class_scores[:, 0]
+        best_cls = np.argmax(class_scores, axis=1)
+        mask = (best_cls == 0) & (person_scores >= self.conf_threshold)
+
+        filtered = preds[mask].copy()
         scores = person_scores[mask]
+
+        if filtered.size > 0 and float(np.max(filtered[:, :4])) <= 1.5:
+            filtered[:, :4] *= self.imgsz
 
         raw_boxes = []
         for row in filtered:
@@ -74,12 +91,13 @@ class ONNXPersonDetector:
 
         if raw_boxes:
             indices = cv2.dnn.NMSBoxes(raw_boxes, scores.tolist(), self.conf_threshold, 0.45)
-            for idx in np.array(indices).flatten():
-                x, y, bw, bh = raw_boxes[int(idx)]
-                bx1, by1 = max(0, x), max(0, y)
-                bx2, by2 = min(w - 1, x + bw), min(h - 1, y + bh)
-                if bx2 > bx1 and by2 > by1:
-                    boxes.append((bx1, by1, bx2, by2))
+            if len(indices) > 0:
+                for idx in np.array(indices).reshape(-1):
+                    x, y, bw, bh = raw_boxes[int(idx)]
+                    bx1, by1 = max(0, x), max(0, y)
+                    bx2, by2 = min(w - 1, x + bw), min(h - 1, y + bh)
+                    if bx2 > bx1 and by2 > by1:
+                        boxes.append((bx1, by1, bx2, by2))
 
         return boxes
 
@@ -92,4 +110,3 @@ def blur_heads(frame: np.ndarray, boxes: list[tuple[int, int, int, int]]) -> np.
         if roi.size > 0:
             frame[y1:head_y2, x1:x2] = cv2.GaussianBlur(roi, (23, 23), 15)
     return frame
-

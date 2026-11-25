@@ -1,4 +1,4 @@
-import json
+﻿import json
 from collections import deque
 from dataclasses import dataclass
 from pathlib import Path
@@ -45,36 +45,36 @@ class CrowdPhysicsEngine:
         self.zones = config["zones"]
         self.tripwires = config.get("tripwires", [])
 
-        # Build pixel -> meter homography matrix
         cal = config["calibration"]
         src = np.array(cal["image_points_px"], dtype=np.float32)
         w = float(cal["world_size_meters"]["width"])
         h = float(cal["world_size_meters"]["height"])
         dst = np.array([[0.0, 0.0], [w, 0.0], [w, h], [0.0, h]], dtype=np.float32)
         self.homography = cv2.getPerspectiveTransform(src, dst)
+        self.inv_homography = cv2.getPerspectiveTransform(dst, src)
 
-        # Precompute zone polygons in meters
         self._zone_polys = {
             z["id"]: np.array(z["polygon_meters"], dtype=np.float32)
             for z in self.zones
         }
-
-        # Tracking history: track_id -> (x_m, y_m, timestamp)
         self._last_positions: dict[int, tuple[float, float, float]] = {}
-
-        # Rolling 60-second crossing timestamps per zone
         self._inflow_events: dict[str, deque[float]] = {z["id"]: deque() for z in self.zones}
         self._outflow_events: dict[str, deque[float]] = {z["id"]: deque() for z in self.zones}
 
     @classmethod
     def from_file(cls, path: str | Path) -> "CrowdPhysicsEngine":
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             return cls(json.load(f))
 
     def pixel_to_meters(self, u: float, v: float) -> tuple[float, float]:
         pt = np.array([[[float(u), float(v)]]], dtype=np.float32)
         mapped = cv2.perspectiveTransform(pt, self.homography)[0][0]
         return float(mapped[0]), float(mapped[1])
+
+    def meters_to_pixel(self, xm: float, ym: float) -> tuple[int, int]:
+        pt = np.array([[[float(xm), float(ym)]]], dtype=np.float32)
+        mapped = cv2.perspectiveTransform(pt, self.inv_homography)[0][0]
+        return round(float(mapped[0])), round(float(mapped[1]))
 
     def _classify_risk(
         self, density_pm2: float, pressure: float, ttcd_minutes: float | None
@@ -137,7 +137,6 @@ class CrowdPhysicsEngine:
         bev_points: list[dict[str, Any]] = []
         zone_counts: dict[str, int] = {z["id"]: 0 for z in self.zones}
         zone_velocities: dict[str, list[tuple[float, float]]] = {z["id"]: [] for z in self.zones}
-
         active_ids: set[int] = set()
 
         for person in tracks:
@@ -155,7 +154,6 @@ class CrowdPhysicsEngine:
                     vy = (ym - py) / dt
                     has_velocity = True
 
-                # Check virtual tripwire crossings
                 for tw in self.tripwires:
                     a = (float(tw["line_meters"][0][0]), float(tw["line_meters"][0][1]))
                     b = (float(tw["line_meters"][1][0]), float(tw["line_meters"][1][1]))
@@ -166,25 +164,28 @@ class CrowdPhysicsEngine:
                             self._outflow_events[tw["zone_id"]].append(timestamp)
 
             self._last_positions[person.track_id] = (xm, ym, timestamp)
-            bev_points.append({"id": person.track_id, "x": round(xm, 2), "y": round(ym, 2)})
 
-            # Assign person to any matching polygon zone
+            in_any_zone = False
             for z in self.zones:
                 zid = z["id"]
                 if cv2.pointPolygonTest(self._zone_polys[zid], (xm, ym), False) >= 0:
+                    in_any_zone = True
                     zone_counts[zid] += 1
                     if has_velocity:
                         zone_velocities[zid].append((vx, vy))
 
-        # Drop stale tracks older than 5 seconds
+            bev_points.append(
+                {"id": person.track_id, "x": round(xm, 2), "y": round(ym, 2), "in_zone": in_any_zone}
+            )
+
         stale_ids = [
-            tid for tid, (_, _, t) in self._last_positions.items()
+            tid
+            for tid, (_, _, t) in self._last_positions.items()
             if tid not in active_ids and (timestamp - t) > 5.0
         ]
         for tid in stale_ids:
             del self._last_positions[tid]
 
-        # Compute physics per zone
         risk_rank = {"SAFE": 0, "ELEVATED": 1, "HIGH": 2, "CRITICAL": 3}
         overall_risk = "SAFE"
         zones_report: dict[str, Any] = {}
@@ -196,7 +197,6 @@ class CrowdPhysicsEngine:
             count = zone_counts[zid]
             density = count / area
 
-            # Helbing crowd pressure: P = rho * (Var(vx) + Var(vy))
             vels = zone_velocities[zid]
             if len(vels) >= 2:
                 arr = np.array(vels, dtype=np.float64)
@@ -206,14 +206,12 @@ class CrowdPhysicsEngine:
             pressure = density * vel_var
             turbulence = pressure >= self.thresholds["turbulence_pressure_limit"]
 
-            # Rolling 60s inflow / outflow rates (people per minute)
             self._prune_old_events(self._inflow_events[zid], timestamp)
             self._prune_old_events(self._outflow_events[zid], timestamp)
             q_in_pm = float(len(self._inflow_events[zid]))
             q_out_pm = float(len(self._outflow_events[zid]))
             net_flux_pm = q_in_pm - q_out_pm
 
-            # Exact Time-to-Critical-Density (minutes)
             crit_rho = float(self.thresholds["critical_density_pm2"])
             if density >= crit_rho:
                 ttcd_minutes: float | None = 0.0

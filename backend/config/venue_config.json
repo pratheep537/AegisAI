@@ -8,14 +8,14 @@
   },
   "calibration": {
     "image_points_px": [
-      [180, 260],
-      [1100, 260],
-      [1240, 690],
-      [40, 690]
+      [110, 210],
+      [1170, 210],
+      [1275, 718],
+      [5, 718]
     ],
     "world_size_meters": {
-      "width": 12.0,
-      "height": 18.0
+      "width": 10.0,
+      "height": 6.0
     }
   },
   "thresholds": {
@@ -28,14 +28,14 @@
   "zones": [
     {
       "id": "chokepoint_tunnel",
-      "name": "Exit Tunnel B",
+      "name": "Concourse Core",
       "polygon_meters": [
-        [2.0, 4.0],
-        [10.0, 4.0],
-        [10.0, 12.0],
-        [2.0, 12.0]
+        [0.8, 0.8],
+        [9.2, 0.8],
+        [9.2, 5.2],
+        [0.8, 5.2]
       ],
-      "area_m2": 64.0,
+      "area_m2": 37.0,
       "upstream_gates": ["Gate N1", "Gate N2"],
       "relief_exits": ["Emergency Corridor E3"]
     }
@@ -46,8 +46,8 @@
       "zone_id": "chokepoint_tunnel",
       "direction": "in",
       "line_meters": [
-        [2.0, 4.0],
-        [10.0, 4.0]
+        [0.8, 0.8],
+        [9.2, 0.8]
       ]
     },
     {
@@ -55,8 +55,8 @@
       "zone_id": "chokepoint_tunnel",
       "direction": "out",
       "line_meters": [
-        [2.0, 12.0],
-        [10.0, 12.0]
+        [0.8, 5.2],
+        [9.2, 5.2]
       ]
     }
   ],
