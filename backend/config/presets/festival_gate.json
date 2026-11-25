@@ -1,0 +1,67 @@
+{
+  "venue_id": "festival-main-gate",
+  "venue_name": "Festival Main Entrance & Gathering Area",
+  "camera": {
+    "source": "backend/data/crowd_video.mp4",
+    "target_fps": 5,
+    "privacy_blur_faces": true
+  },
+  "calibration": {
+    "image_points_px": [
+      [110, 210],
+      [1170, 210],
+      [1275, 718],
+      [5, 718]
+    ],
+    "world_size_meters": {
+      "width": 10.0,
+      "height": 6.0
+    }
+  },
+  "thresholds": {
+    "elevated_density_pm2": 1.5,
+    "high_density_pm2": 3.0,
+    "critical_density_pm2": 4.0,
+    "turbulence_pressure_limit": 0.015,
+    "ttcd_warning_minutes": 2.0
+  },
+  "zones": [
+    {
+      "id": "festival_entry_queue",
+      "name": "Festival Entry Queue & Gate",
+      "polygon_meters": [
+        [0.8, 0.8],
+        [9.2, 0.8],
+        [9.2, 5.2],
+        [0.8, 5.2]
+      ],
+      "area_m2": 37.0,
+      "upstream_gates": ["Festival Gate A", "Festival Gate B"],
+      "relief_exits": ["Side Exit C", "Emergency Exit D"]
+    }
+  ],
+  "tripwires": [
+    {
+      "id": "festival_queue_inflow",
+      "zone_id": "festival_entry_queue",
+      "direction": "in",
+      "line_meters": [
+        [0.8, 0.8],
+        [9.2, 0.8]
+      ]
+    },
+    {
+      "id": "festival_queue_outflow",
+      "zone_id": "festival_entry_queue",
+      "direction": "out",
+      "line_meters": [
+        [0.8, 5.2],
+        [9.2, 5.2]
+      ]
+    }
+  ],
+  "alerts": {
+    "webhook_url": "",
+    "cooldown_seconds": 30
+  }
+}
