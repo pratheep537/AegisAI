@@ -1,0 +1,1688 @@
+﻿
+===== D:\New folder (2)\AegisAI\backend\agents\agent1_crowd_intelligence\allocation_agent.py =====
+class AllocationAgent:
+
+    def allocate(self, zones):
+
+        allocation = {}
+
+        for zone,count in zones.items():
+
+            guards = max(1, count // 20)
+
+            allocation[zone] = guards
+
+        return allocation
+
+===== D:\New folder (2)\AegisAI\backend\agents\agent1_crowd_intelligence\decision_agent.py =====
+class DecisionAgent:
+
+    def decide(self, risk_level, zones):
+
+        # Find the most crowded zone
+        max_zone = max(zones, key=zones.get)
+
+        if risk_level == "LOW":
+            action = "Area Safe"
+            alert = "No action required"
+
+        elif risk_level == "MEDIUM":
+            action = "Monitor Crowd"
+            alert = f"Monitor activity near {max_zone} zone"
+
+        else:
+            action = "Deploy Security"
+            alert = f"ALERT: Send staff to {max_zone} zone immediately"
+
+        return action, alert
+
+===== D:\New folder (2)\AegisAI\backend\agents\agent1_crowd_intelligence\perception_agent.py =====
+import cv2
+
+
+class PerceptionAgent:
+
+    def __init__(self, video_path):
+
+        self.cap = cv2.VideoCapture(video_path)
+
+    def get_frame(self):
+
+        ret, frame = self.cap.read()
+
+        if not ret:
+            return None
+
+        return frame
+
+    def release(self):
+
+        self.cap.release()
+
+===== D:\New folder (2)\AegisAI\backend\agents\agent1_crowd_intelligence\prediction_agent.py =====
+import cv2
+from ultralytics import YOLO
+
+
+class PredictionAgent:
+
+    def __init__(self):
+
+        import os
+        import sys
+        
+        # Determine paths dynamically assuming it's run from backend/main.py
+        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        model_path = os.path.join(base_dir, "models", "yolov8x.pt")
+        
+        # Load YOLO model
+        self.model = YOLO(model_path)
+
+    def detect_people(self, frame):
+
+        # Resize frame for consistent detection
+        frame = cv2.resize(frame, (1280, 720))
+
+        height, width, _ = frame.shape
+
+        # Draw zone divider lines
+        cv2.line(frame, (width // 3, 0), (width // 3, height), (0, 255, 0), 2)
+        cv2.line(frame, (2 * width // 3, 0), (2 * width // 3, height), (0, 255, 0), 2)
+
+        # Zone labels
+        cv2.putText(frame, "LEFT ZONE", (40, 40),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
+
+        cv2.putText(frame, "CENTER ZONE", (width // 2 - 120, 40),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
+
+        cv2.putText(frame, "RIGHT ZONE", (width - 220, 40),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
+
+        # Run YOLO detection
+        results = self.model(
+            frame,
+            imgsz=1600,
+            conf=0.10,
+            classes=[0]   # detect only person class
+        )
+
+        boxes_list = []
+
+        left = 0
+        center = 0
+        right = 0
+
+        for r in results:
+
+            boxes = r.boxes.xyxy
+            classes = r.boxes.cls
+
+            for box, cls in zip(boxes, classes):
+
+                if int(cls) != 0:
+                    continue
+
+                x1, y1, x2, y2 = map(int, box)
+
+                # Draw bounding box
+                cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 255), 2)
+
+                cx = (x1 + x2) // 2
+                cy = (y1 + y2) // 2
+
+                # Draw center point
+                cv2.circle(frame, (cx, cy), 4, (0, 0, 255), -1)
+
+                # Zone classification
+                if cx < width / 3:
+                    left += 1
+                elif cx < 2 * width / 3:
+                    center += 1
+                else:
+                    right += 1
+
+                boxes_list.append((x1, y1, x2, y2))
+
+        total = left + center + right
+
+        zones = {
+            "left": left,
+            "center": center,
+            "right": right
+        }
+
+        # Display statistics on video
+        cv2.putText(frame, f"Total People: {total}",
+                    (20, height - 80),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
+
+        cv2.putText(frame, f"Left: {left}",
+                    (20, height - 50),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 0), 2)
+
+        cv2.putText(frame, f"Center: {center}",
+                    (200, height - 50),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 0), 2)
+
+        cv2.putText(frame, f"Right: {right}",
+                    (420, height - 50),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 0), 2)
+
+        return total, boxes_list, zones, frame
+
+===== D:\New folder (2)\AegisAI\backend\agents\agent1_crowd_intelligence\risk_agent.py =====
+class RiskAgent:
+
+    def analyze(self, people_count):
+
+        if people_count < 20:
+            level = "LOW"
+
+        elif people_count < 50:
+            level = "MEDIUM"
+
+        else:
+            level = "HIGH"
+
+        return level
+
+===== D:\New folder (2)\AegisAI\backend\agents\agent1_crowd_intelligence\simulation_agent.py =====
+class SimulationAgent:
+
+    def simulate(self, people_count):
+
+        if people_count > 50:
+
+            reduced = people_count - 10
+
+        else:
+
+            reduced = people_count
+
+        return reduced
+
+===== D:\New folder (2)\AegisAI\backend\agents\agent2_llm_command\command_agent.py =====
+from .nlp_parser import NLPParser
+from .llm_response import LLMResponse
+
+
+class CommandAgent:
+    def __init__(self):
+        self.parser = NLPParser()
+
+        # Use lightweight model for reliability
+        self.llm = LLMResponse(model="phi3")
+
+    def process_query(self, query, system_state):
+
+        # Parse user intent
+        parsed = self.parser.parse(query)
+
+        # Generate response using LLM + system context
+        response = self.llm.generate(query, system_state)
+
+        return response
+
+===== D:\New folder (2)\AegisAI\backend\agents\agent2_llm_command\llm_response.py =====
+import json
+import requests
+
+
+class LLMResponse:
+
+    def __init__(self, model="phi3"):
+        self.model = model
+        self.url = "http://127.0.0.1:11434/api/generate"
+
+    def generate(self, user_query, system_context):
+
+        prompt = f"""
+You are an AI stadium control room assistant.
+
+Current System State:
+{json.dumps(system_context, indent=2)}
+
+User Question:
+{user_query}
+
+Answer clearly using the provided data. Be professional and concise.
+"""
+
+        payload = {
+            "model": self.model,
+            "prompt": prompt,
+            "stream": False
+        }
+
+        try:
+            print("Sending request to Ollama...")
+
+            response = requests.post(
+                self.url,
+                json=payload,
+                timeout=120   # Increased timeout
+            )
+
+            if response.status_code == 200:
+                result = response.json()
+                return result.get("response", "AI assistant could not generate a response.")
+
+            else:
+                return f"LLM Error: HTTP {response.status_code}"
+
+        except Exception as e:
+
+            print("Ollama error:", str(e))
+
+            # DEMO FALLBACK (never crash)
+            fallback = f"""
+AI assistant temporarily unavailable.
+
+Current system data:
+Total Crowd: {system_context.get('total_people', 'N/A')}
+
+Zones:
+{system_context.get('zones', {})}
+
+Risk Level: {system_context.get('risk_level', 'Unknown')}
+
+Guards Needed: {system_context.get('guards_needed', 'N/A')}
+"""
+
+            return fallback
+
+===== D:\New folder (2)\AegisAI\backend\agents\agent2_llm_command\nlp_parser.py =====
+import spacy
+
+
+class NLPParser:
+
+    def __init__(self):
+
+        try:
+            self.nlp = spacy.load("en_core_web_sm")
+
+        except:
+            import os
+            os.system("python -m spacy download en_core_web_sm")
+            self.nlp = spacy.load("en_core_web_sm")
+
+    def parse(self, text):
+
+        text = text.lower()
+
+        doc = self.nlp(text)
+
+        intent = "general"
+
+        if "crowd" in text or "zone" in text or "density" in text:
+            intent = "density"
+
+        elif "predict" in text or "future" in text or "forecast" in text:
+            intent = "prediction"
+
+        elif "guards" in text or "security" in text or "staff" in text:
+            intent = "security"
+
+        return {
+            "intent": intent,
+            "tokens": [token.text for token in doc]
+        }
+
+===== D:\New folder (2)\AegisAI\backend\agents\agent3_prediction\congestion_predictor.py =====
+import numpy as np
+from sklearn.linear_model import LinearRegression
+
+class CongestionPredictor:
+    def __init__(self):
+        self.model = LinearRegression()
+
+    def predict(self, historical_counts):
+        if not historical_counts:
+            return 0
+        
+        # X is time steps [0, 1, 2, 3] etc.
+        X = np.array(range(len(historical_counts))).reshape(-1, 1)
+        y = np.array(historical_counts)
+
+        self.model.fit(X, y)
+
+        # Predict the next time step (representing +5 mins in abstract logic)
+        next_step = np.array([[len(historical_counts)]])
+        predicted_value = self.model.predict(next_step)[0]
+
+        return int(max(0, predicted_value))
+
+
+===== D:\New folder (2)\AegisAI\backend\agents\agent3_prediction\forecast_agent.py =====
+from .trend_analyzer import TrendAnalyzer
+from .congestion_predictor import CongestionPredictor
+
+class ForecastAgent:
+    def __init__(self):
+        self.trend_analyzer = TrendAnalyzer()
+        self.predictor = CongestionPredictor()
+
+    def forecast(self, current_zones):
+        # We find the most crowded zone to forecast, or just forecast center
+        if not current_zones:
+            target_zone = "center"
+        else:
+            target_zone = max(current_zones, key=current_zones.get)
+        
+        history = self.trend_analyzer.get_recent_history(zone=target_zone)
+        predicted_count = self.predictor.predict(history)
+        
+        congestion_warning = predicted_count > 50
+
+        return {
+            "zone": target_zone,
+            "predicted_count": predicted_count,
+            "congestion_warning": congestion_warning
+        }
+
+
+===== D:\New folder (2)\AegisAI\backend\agents\agent3_prediction\trend_analyzer.py =====
+import pandas as pd
+import os
+import sys
+
+# Add backend to sys.path so we can import easily
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+from config import DATASET_PATH
+
+class TrendAnalyzer:
+    def __init__(self):
+        self.dataset_path = DATASET_PATH
+
+    def get_recent_history(self, zone="center", window=4):
+        # Mocking fetching real-time recorded history from a DB using the dataset.
+        try:
+            df = pd.read_csv(self.dataset_path)
+            # Basic mapping center -> Center, left -> Gate etc just for testing
+            # Or just take top rows
+            zone_data = df[df['zone_id'].str.contains(zone, case=False, na=False)]
+            if not zone_data.empty:
+                counts = zone_data['crowd_count'].tail(window).tolist()
+                if len(counts) == window:
+                    return counts
+        except Exception as e:
+            pass
+        
+        # Example default mapping if file fails or zone not found clearly
+        return [31, 34, 38, 41]
+
+
+===== D:\New folder (2)\AegisAI\backend\api\crowd_routes.py =====
+from fastapi import APIRouter
+import os
+import sys
+
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from services.vision_service import get_crowd_data
+
+router = APIRouter()
+
+@router.get("/crowd-data")
+def read_crowd_data():
+    return get_crowd_data()
+
+
+===== D:\New folder (2)\AegisAI\backend\api\llm_routes.py =====
+from fastapi import APIRouter
+from pydantic import BaseModel
+import os
+import sys
+
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from services.llm_service import ask_llm
+
+router = APIRouter()
+
+class AskRequest(BaseModel):
+    question: str
+
+@router.post("/ask-ai")
+async def ask_ai(request: AskRequest):
+    answer = await ask_llm(request.question)
+    return {"response": answer}
+
+
+===== D:\New folder (2)\AegisAI\backend\api\prediction_routes.py =====
+from fastapi import APIRouter
+import os
+import sys
+
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from services.prediction_service import get_prediction
+
+router = APIRouter()
+
+@router.get("/prediction")
+def read_prediction():
+    return get_prediction()
+
+
+===== D:\New folder (2)\AegisAI\backend\api\video_routes.py =====
+from fastapi import APIRouter
+from fastapi.responses import StreamingResponse
+import cv2
+import time
+import os
+import sys
+
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from database.db import db
+
+router = APIRouter()
+
+def generate_frames():
+    while True:
+        frame = db.get_frame()
+        if frame is None:
+            time.sleep(0.1)
+            continue
+            
+        ret, buffer = cv2.imencode('.jpg', frame)
+        if not ret:
+            continue
+            
+        frame_bytes = buffer.tobytes()
+        yield (b'--frame\r\n'
+               b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
+        
+        # Ensure we don't spam requests infinitely fast
+        time.sleep(0.03)
+
+@router.get("/video-feed")
+def video_feed():
+    return StreamingResponse(generate_frames(), media_type="multipart/x-mixed-replace; boundary=frame")
+
+
+===== D:\New folder (2)\AegisAI\backend\database\db.py =====
+import threading
+
+class Database:
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.state = {
+            "total_people": 0,
+            "zones": {
+                "left": 0,
+                "center": 0,
+                "right": 0
+            },
+            "risk_level": "LOW",
+            "guards_needed": 0,
+            "prediction": {
+                "zone": "None",
+                "predicted_count": 0,
+                "congestion_warning": False
+            },
+            "frame": None
+        }
+
+    def update_crowd_data(self, total, zones, risk, guards):
+        with self.lock:
+            self.state["total_people"] = total
+            self.state["zones"] = zones
+            self.state["risk_level"] = risk
+            self.state["guards_needed"] = sum(guards.values()) if isinstance(guards, dict) else guards
+            self.state["guards_allocated"] = guards if isinstance(guards, dict) else {}
+
+    def update_prediction(self, prediction_data):
+        with self.lock:
+            self.state["prediction"] = prediction_data
+
+    def update_frame(self, frame):
+        with self.lock:
+            self.state["frame"] = frame
+
+    def get_frame(self):
+        with self.lock:
+            return self.state["frame"]
+
+    def get_state(self):
+        with self.lock:
+            import copy
+            safe_state = {k: v for k, v in self.state.items() if k != "frame"}
+            return copy.deepcopy(safe_state)
+
+db = Database()
+
+
+===== D:\New folder (2)\AegisAI\backend\pipelines\command_pipeline.py =====
+import threading
+import os
+import sys
+
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from agents.agent2_llm_command.command_agent import CommandAgent
+from database.db import db
+
+class CommandPipeline:
+    def __init__(self):
+        self.agent = CommandAgent()
+
+    def handle_command(self, query, callback=None):
+        def worker():
+            state = db.get_state()
+            response = self.agent.process_query(query, state)
+            
+            if callback:
+                callback(response)
+            else:
+                print(f"\n[AI Response] {response}")
+                print("\n> ask: ", end="", flush=True)
+
+        t = threading.Thread(target=worker, daemon=True)
+        t.start()
+
+command_pipeline = CommandPipeline()
+
+
+===== D:\New folder (2)\AegisAI\backend\pipelines\prediction_pipeline.py =====
+import threading
+import time
+import os
+import sys
+
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from agents.agent3_prediction.forecast_agent import ForecastAgent
+from database.db import db
+
+def start_prediction_pipeline():
+    agent = ForecastAgent()
+    print("[Prediction Pipeline] Started")
+    
+    while True:
+        state = db.get_state()
+        zones = state.get("zones", {})
+        
+        if zones and sum(zones.values()) > 0:
+            prediction = agent.forecast(zones)
+            db.update_prediction(prediction)
+        
+        # Run forecast every 5 seconds
+        time.sleep(5)
+
+def run_prediction_thread():
+    t = threading.Thread(target=start_prediction_pipeline, daemon=True)
+    t.start()
+
+
+===== D:\New folder (2)\AegisAI\backend\pipelines\vision_pipeline.py =====
+import threading
+import time
+import os
+import sys
+
+# Add backend to sys.path so we can import easily
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from agents.agent1_crowd_intelligence.perception_agent import PerceptionAgent
+from agents.agent1_crowd_intelligence.prediction_agent import PredictionAgent
+from agents.agent1_crowd_intelligence.risk_agent import RiskAgent
+from agents.agent1_crowd_intelligence.decision_agent import DecisionAgent
+from agents.agent1_crowd_intelligence.allocation_agent import AllocationAgent
+from agents.agent1_crowd_intelligence.simulation_agent import SimulationAgent
+from database.db import db
+from config import VIDEO_PATH
+
+def start_vision_pipeline():
+    print("[Vision Pipeline] Initializing models...")
+    perception = PerceptionAgent(VIDEO_PATH)
+    prediction = PredictionAgent()
+    risk_agent = RiskAgent()
+    decision_agent = DecisionAgent()
+    allocation_agent = AllocationAgent()
+    simulation_agent = SimulationAgent()
+
+    print("[Vision Pipeline] Started")
+
+    while True:
+        try:
+            frame = perception.get_frame()
+        except Exception as e:
+            print(f"[Vision Pipeline] Frame read error: {e}")
+            frame = None
+
+        if frame is None:
+            # Loop the video for continuous running
+            perception.release()
+            perception = PerceptionAgent(VIDEO_PATH)
+            time.sleep(0.5)
+            continue
+            
+        # 1. Detect people
+        total, boxes, zones, out_frame = prediction.detect_people(frame)
+
+        # 2. Risk analysis
+        risk_level = risk_agent.analyze(total)
+
+        # 3. Decision
+        action, alert = decision_agent.decide(risk_level, zones)
+
+        # 4. Allocation
+        guards_allocation = allocation_agent.allocate(zones)
+
+        # 5. Simulation (optional usage to calculate reduced crowd)
+        reduced_count = simulation_agent.simulate(total)
+
+        # Update database state
+        db.update_crowd_data(total, zones, risk_level, guards_allocation)
+        db.update_frame(out_frame)
+
+        # Sleep a little to not max out CPU loop
+        time.sleep(0.01)
+
+def run_vision_thread():
+    t = threading.Thread(target=start_vision_pipeline, daemon=True)
+    t.start()
+
+
+===== D:\New folder (2)\AegisAI\backend\services\llm_service.py =====
+import asyncio
+import os
+import sys
+
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from pipelines.command_pipeline import command_pipeline
+
+async def ask_llm(query: str):
+    loop = asyncio.get_running_loop()
+    future = loop.create_future()
+    
+    def on_result(response):
+        loop.call_soon_threadsafe(future.set_result, response)
+        
+    command_pipeline.handle_command(query, callback=on_result)
+    return await future
+
+
+===== D:\New folder (2)\AegisAI\backend\services\prediction_service.py =====
+import os
+import sys
+
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from database.db import db
+
+def get_prediction():
+    state = db.get_state()
+    return state.get("prediction", {})
+
+
+===== D:\New folder (2)\AegisAI\backend\services\vision_service.py =====
+import os
+import sys
+
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from database.db import db
+
+def get_crowd_data():
+    state = db.get_state()
+    return {
+        "total_people": state.get("total_people", 0),
+        "zones": state.get("zones", {}),
+        "risk_level": state.get("risk_level", "LOW"),
+        "guards_needed": state.get("guards_needed", 0),
+        "guards_allocated": state.get("guards_allocated", {})
+    }
+
+
+===== D:\New folder (2)\AegisAI\backend\utils\logger.py =====
+import logging
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger("AEGISAI")
+
+
+===== D:\New folder (2)\AegisAI\backend\utils\video_loader.py =====
+class VideoLoader:
+    def __init__(self, path):
+        self.path = path
+
+
+===== D:\New folder (2)\AegisAI\backend\utils\zone_mapper.py =====
+class ZoneMapper:
+    def get_zone_config(self):
+        return {"left": (0, 33), "center": (33, 66), "right": (66, 100)}
+
+
+===== D:\New folder (2)\AegisAI\backend\config.py =====
+import os
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# Data paths
+VIDEO_PATH = os.path.join(BASE_DIR, "data", "crowd_video.mp4")
+DATASET_PATH = os.path.join(BASE_DIR, "data", "stadium_dataset.csv")
+
+# Model path
+YOLO_MODEL_PATH = os.path.join(BASE_DIR, "models", "yolov8x.pt")
+
+# Server settings
+HOST = "0.0.0.0"
+PORT = 8000
+
+
+===== D:\New folder (2)\AegisAI\backend\main.py =====
+import threading
+import uvicorn
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+import sys
+import os
+
+# Set up paths so we can import internal modules easily
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+from pipelines.vision_pipeline import run_vision_thread
+from pipelines.prediction_pipeline import run_prediction_thread
+from pipelines.command_pipeline import command_pipeline
+from api.crowd_routes import router as crowd_router
+from api.prediction_routes import router as prediction_router
+from api.llm_routes import router as llm_router
+from api.video_routes import router as video_router
+
+app = FastAPI(title="AEGISAI Backend")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"], 
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.include_router(crowd_router)
+app.include_router(prediction_router)
+app.include_router(llm_router)
+app.include_router(video_router)
+
+def run_server():
+    from config import HOST, PORT
+    uvicorn.run(app, host=HOST, port=PORT, log_level="error")
+
+def main():
+    print("====================================")
+    print(" AEGISAI Smart Crowd Monitoring     ")
+    print("====================================")
+
+    # 1. Start Vision Pipeline (Agent 1)
+    run_vision_thread()
+
+    # 2. Start Prediction Pipeline (Agent 3)
+    run_prediction_thread()
+
+    # 3. Start FastAPI server
+    server_thread = threading.Thread(target=run_server, daemon=True)
+    server_thread.start()
+
+    print("\nSystem running. API available at http://localhost:8000")
+    print("You can query the LLM using: ask: <your question>")
+
+    # 4. Interactive CLI for LLM Command Agent (Agent 2)
+    while True:
+        try:
+            # Note: flush logic is handled by the command pipeline to place the next prompt
+            user_input = input("\n> ")
+            if user_input.lower().startswith("ask:"):
+                query = user_input[4:].strip()
+                if query:
+                    command_pipeline.handle_command(query)
+            elif user_input.lower() in ["exit", "quit"]:
+                print("Shutting down...")
+                break
+        except KeyboardInterrupt:
+            print("Shutting down...")
+            break
+
+if __name__ == "__main__":
+    main()
+
+
+===== D:\New folder (2)\AegisAI\models\csrnet_counter.py =====
+import torch
+import cv2
+import numpy as np
+from csrnet_model import CSRNet
+
+class CSRNetCounter:
+
+    def __init__(self):
+
+        self.model = CSRNet()
+        self.model.load_state_dict(torch.load("CSRNet_pretrained.pth"))
+        self.model.eval()
+
+    def estimate_density(self, frame):
+
+        img = cv2.resize(frame, (640, 480))
+        img = img.transpose((2,0,1))
+        img = np.expand_dims(img, axis=0)
+
+        img = torch.tensor(img).float()
+
+        with torch.no_grad():
+            density_map = self.model(img)
+
+        count = density_map.sum().item()
+
+        return count
+
+===== D:\New folder (2)\AegisAI\models\yolo_detector.py =====
+from ultralytics import YOLO
+
+class YOLODetector:
+
+    def __init__(self):
+        self.model = YOLO("yolov8x.pt")
+
+    def detect_people(self, frame):
+
+        results = self.model(frame)
+
+        people_boxes = []
+
+        for r in results:
+            for box in r.boxes:
+                cls = int(box.cls[0])
+
+                if cls == 0:  # person class
+                    people_boxes.append(box.xyxy[0].tolist())
+
+        return people_boxes
+
+===== D:\New folder (2)\AegisAI\frontend\src\components\GuardTracker.jsx =====
+import { UsersRound } from "lucide-react";
+
+export default function GuardTracker({ data, loading }) {
+    if (loading && !data) {
+        return <div className="bg-slate-800 rounded-xl p-5 h-48 animate-pulse shadow-lg border border-slate-700 mt-6"></div>;
+    }
+
+    const { guards_allocated } = data || {};
+
+    if (!guards_allocated || Object.keys(guards_allocated).length === 0) {
+        return null; // Render nothing if data shape is wrong or initially missing
+    }
+
+    return (
+        <div className="bg-slate-800 rounded-xl p-5 shadow-lg border border-slate-700 mt-6">
+            <div className="flex items-center gap-2 mb-4 border-b border-slate-700 pb-2">
+                <UsersRound className="text-cyan-400" />
+                <h2 className="text-lg font-semibold">Active Unit Deployments</h2>
+            </div>
+
+            <div className="grid grid-cols-3 gap-3">
+                {Object.entries(guards_allocated).map(([zone, count]) => (
+                    <div key={zone} className="bg-slate-900/50 p-3 rounded-lg flex flex-col items-center border border-slate-700/50">
+                        <span className="text-xs text-slate-400 uppercase tracking-wider mb-1 block text-center w-full truncate">{zone}</span>
+                        <span className="text-xl font-bold text-cyan-300">{count}</span>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+}
+
+
+===== D:\New folder (2)\AegisAI\frontend\src\components\LiveCamera.jsx =====
+import { Camera, Users } from "lucide-react";
+
+export default function LiveCamera({ totalPeople }) {
+    // We use the direct URI because the browser natively handles MJPEG streams via <img> targets
+    const videoStreamUrl = "http://localhost:8000/video-feed";
+
+    return (
+        <div className="bg-slate-800 rounded-xl shadow-lg border border-slate-700 h-full flex flex-col overflow-hidden relative group">
+            <div className="p-4 flex items-center justify-between border-b border-slate-700 bg-slate-800/90 z-10 backdrop-blur-sm relative">
+                <div className="flex items-center gap-2">
+                    <Camera className="text-rose-400 w-5 h-5" />
+                    <h2 className="text-xl font-semibold">Live Camera Detection</h2>
+                </div>
+
+                {/* Live indicator dot */}
+                <div className="flex items-center gap-1.5 px-3 py-1 bg-rose-500/10 rounded-full border border-rose-500/20">
+                    <div className="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></div>
+                    <span className="text-xs font-semibold text-rose-400 uppercase tracking-wider">Live</span>
+                </div>
+            </div>
+
+            <div className="flex-1 bg-black relative flex items-center justify-center p-1">
+                {/* Using standard img element for MJPEG streams */}
+                <img
+                    src={videoStreamUrl}
+                    alt="Live stadium analysis feed"
+                    className="w-full h-full object-contain rounded-lg shadow-inner"
+                    onError={(e) => {
+                        e.target.style.display = 'none';
+                        e.target.nextSibling.style.display = 'flex';
+                    }}
+                />
+
+                <div className="absolute inset-0 flex-col items-center justify-center hidden text-slate-500">
+                    <Camera className="w-12 h-12 mb-3 opacity-20" />
+                    <p>Connecting to vision pipeline...</p>
+                </div>
+
+                {/* Overlay total HUD */}
+                <div className="absolute bottom-6 left-6 bg-slate-900/80 backdrop-blur-md border border-slate-600/50 rounded-xl p-4 shadow-xl transform transition-transform group-hover:scale-105">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-blue-500/20 rounded-lg">
+                            <Users className="text-blue-400 w-6 h-6" />
+                        </div>
+                        <div>
+                            <p className="text-xs text-slate-300 font-medium uppercase tracking-wider mb-0.5">YOLO Detections</p>
+                            <p className="text-3xl font-black text-white leading-none tracking-tight">{totalPeople || 0}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+
+===== D:\New folder (2)\AegisAI\frontend\src\components\LLMPanel.jsx =====
+import { useState } from "react";
+import axios from "axios";
+import { Send, Bot } from "lucide-react";
+
+export default function LLMPanel() {
+    const [query, setQuery] = useState("");
+    const [loading, setLoading] = useState(false);
+    const [messages, setMessages] = useState([
+        { role: "ai", text: "Control room AI ready. Ask me anything about the stadium." }
+    ]);
+
+    const handleAsk = async (e) => {
+        e.preventDefault();
+        if (!query.trim()) return;
+
+        const userMessage = query.trim();
+        setMessages((prev) => [...prev, { role: "user", text: userMessage }]);
+        setQuery("");
+        setLoading(true);
+
+        try {
+            const res = await axios.post("http://localhost:8000/ask-ai", {
+                question: userMessage
+            });
+            setMessages((prev) => [
+                ...prev,
+                { role: "ai", text: res.data.response || "No response generated." }
+            ]);
+        } catch (err) {
+            setMessages((prev) => [
+                ...prev,
+                { role: "ai", text: "Error: Could not reach LLM inference engine." }
+            ]);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    return (
+        <div className="bg-slate-800 rounded-xl p-5 shadow-lg border border-slate-700 h-full flex flex-col">
+            <div className="flex items-center gap-2 mb-4 border-b border-slate-700 pb-2">
+                <Bot className="text-teal-400" />
+                <h2 className="text-xl font-semibold">LLM Message Panel</h2>
+            </div>
+
+            <div className="flex-1 overflow-y-auto space-y-3 mb-4 max-h-[400px]">
+                {messages.map((m, i) => (
+                    <div
+                        key={i}
+                        className={`p-3 rounded-lg text-sm ${m.role === "ai"
+                                ? "bg-slate-700 text-slate-200"
+                                : "bg-teal-600/30 text-teal-100 ml-auto w-11/12 border border-teal-500/30"
+                            }`}
+                    >
+                        {m.text}
+                    </div>
+                ))}
+                {loading && <div className="text-slate-400 text-sm animate-pulse">Thinking...</div>}
+            </div>
+
+            <form onSubmit={handleAsk} className="mt-auto relative shadow-sm">
+                <input
+                    type="text"
+                    className="w-full bg-slate-900 border border-slate-600 rounded-lg py-3 pl-4 pr-12 text-sm focus:outline-none focus:border-teal-500 transition-colors"
+                    placeholder="Ask system state..."
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    disabled={loading}
+                />
+                <button
+                    type="submit"
+                    className="absolute right-2 top-2 p-1.5 bg-teal-600 hover:bg-teal-500 rounded-md transition-colors disabled:opacity-50"
+                    disabled={loading}
+                >
+                    <Send className="w-4 h-4" />
+                </button>
+            </form>
+        </div>
+    );
+}
+
+
+===== D:\New folder (2)\AegisAI\frontend\src\components\PredictionPanel.jsx =====
+import { TrendingUp, AlertTriangle } from "lucide-react";
+
+export default function PredictionPanel({ data, loading }) {
+    if (loading && !data) {
+        return (
+            <div className="bg-slate-800 rounded-xl p-5 h-48 animate-pulse shadow-lg border border-slate-700"></div>
+        );
+    }
+
+    const { zone, predicted_count, congestion_warning } = data || {};
+
+    return (
+        <div className="bg-slate-800 rounded-xl p-5 shadow-lg border border-slate-700">
+            <div className="flex items-center gap-2 mb-4 border-b border-slate-700 pb-2">
+                <TrendingUp className="text-purple-400" />
+                <h2 className="text-xl font-semibold">Future Prediction</h2>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 mt-4">
+                <div className="bg-slate-900/50 p-4 rounded-lg border border-slate-700/50">
+                    <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">Target Zone</p>
+                    <p className="text-2xl font-bold capitalize text-purple-200">
+                        {zone || "N/A"}
+                    </p>
+                </div>
+
+                <div className="bg-slate-900/50 p-4 rounded-lg border border-slate-700/50">
+                    <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">+5 Min Forecast</p>
+                    <p className="text-2xl font-bold text-slate-100">
+                        {predicted_count ?? "--"}
+                        <span className="text-sm font-normal text-slate-400 ml-1">people</span>
+                    </p>
+                </div>
+            </div>
+
+            <div className="mt-4 pt-4 border-t border-slate-700/50">
+                <div
+                    className={`flex items-center justify-center gap-2 p-3 rounded-lg font-medium transition-colors ${congestion_warning
+                            ? "bg-red-500/20 text-red-400 border border-red-500/30"
+                            : "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+                        }`}
+                >
+                    {congestion_warning ? (
+                        <>
+                            <AlertTriangle className="w-5 h-5 animate-pulse" />
+                            <span>CONGESTION WARNING ACTIVE</span>
+                        </>
+                    ) : (
+                        <span>FLOW NOMINAL - NO BOTTLENECKS</span>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+}
+
+
+===== D:\New folder (2)\AegisAI\frontend\src\components\StaffPanel.jsx =====
+import { Shield, ShieldAlert } from "lucide-react";
+
+export default function StaffPanel({ data, loading }) {
+    if (loading && !data) {
+        return <div className="bg-slate-800 rounded-xl p-5 h-48 animate-pulse shadow-lg border border-slate-700"></div>;
+    }
+
+    const { guards_needed, risk_level, zones } = data || {};
+
+    // Quick logic to determine the most active zone visually
+    let topZone = "None";
+    let maxCount = 0;
+    if (zones) {
+        Object.entries(zones).forEach(([k, v]) => {
+            if (v > maxCount) {
+                maxCount = v;
+                topZone = k;
+            }
+        });
+    }
+
+    const isHighRisk = risk_level === "HIGH" || risk_level === "CRITICAL";
+
+    return (
+        <div className="bg-slate-800 rounded-xl p-5 shadow-lg border border-slate-700">
+            <div className="flex items-center gap-2 mb-4 border-b border-slate-700 pb-2">
+                <Shield className="text-amber-400" />
+                <h2 className="text-xl font-semibold">Security Staff Deployment</h2>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 mt-6">
+                <div className="bg-slate-900/50 p-4 rounded-lg flex flex-col justify-center items-center border border-slate-700/50 relative overflow-hidden">
+                    {/* Subtle background glow if highly active */}
+                    {isHighRisk && <div className="absolute inset-0 bg-amber-500/5 animate-pulse"></div>}
+
+                    <p className="text-xs text-slate-400 uppercase tracking-wider mb-2 relative z-10">Active Guards Required</p>
+                    <div className="flex items-baseline gap-2 relative z-10">
+                        <span className="text-4xl font-black text-amber-300">{guards_needed || 0}</span>
+                        <span className="text-slate-500 text-sm font-medium">units</span>
+                    </div>
+                </div>
+
+                <div className="bg-slate-900/50 p-4 rounded-lg flex flex-col justify-center items-center border border-slate-700/50">
+                    <p className="text-xs text-slate-400 uppercase tracking-wider mb-2">Primary Focus Zone</p>
+                    <div className="flex items-center gap-2">
+                        {isHighRisk && <ShieldAlert className="w-5 h-5 text-amber-500" />}
+                        <span className="text-2xl font-bold capitalize text-slate-200">{topZone}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+
+===== D:\New folder (2)\AegisAI\frontend\src\components\ZoneRiskPanel.jsx =====
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
+import { ActivitySquare, AlertOctagon } from "lucide-react";
+
+export default function ZoneRiskPanel({ data, loading }) {
+    if (loading && !data) {
+        return (
+            <div className="bg-slate-800 rounded-xl p-5 h-96 animate-pulse shadow-lg border border-slate-700"></div>
+        );
+    }
+
+    const { total_people, zones, risk_level } = data || {};
+
+    const chartData = [
+        { name: "Left", count: zones?.left || 0 },
+        { name: "Center", count: zones?.center || 0 },
+        { name: "Right", count: zones?.right || 0 }
+    ];
+
+    const getRiskColor = (level) => {
+        switch (level) {
+            case "LOW": return "text-emerald-400";
+            case "MEDIUM": return "text-yellow-400";
+            case "HIGH": return "text-orange-400";
+            case "CRITICAL": return "text-red-500 animate-pulse";
+            default: return "text-slate-400";
+        }
+    };
+
+    const getRiskBg = (level) => {
+        switch (level) {
+            case "LOW": return "bg-emerald-500/10 border-emerald-500/20";
+            case "MEDIUM": return "bg-yellow-500/10 border-yellow-500/20";
+            case "HIGH": return "bg-orange-500/10 border-orange-500/20";
+            case "CRITICAL": return "bg-red-500/10 border-red-500/30";
+            default: return "bg-slate-700";
+        }
+    };
+
+    return (
+        <div className="bg-slate-800 rounded-xl p-5 shadow-lg border border-slate-700 h-full flex flex-col">
+            <div className="flex items-center gap-2 mb-4 border-b border-slate-700 pb-2">
+                <ActivitySquare className="text-indigo-400" />
+                <h2 className="text-xl font-semibold">Zone Risk Analysis</h2>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 mb-6">
+                <div className="bg-slate-900/50 p-4 rounded-lg border border-slate-700/50 flex flex-col items-center justify-center">
+                    <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">Total Venue Count</p>
+                    <p className="text-3xl font-bold text-slate-100">{total_people || 0}</p>
+                </div>
+
+                <div className={`p-4 rounded-lg border flex flex-col items-center justify-center ${getRiskBg(risk_level)}`}>
+                    <div className="flex items-center gap-1">
+                        {risk_level === 'CRITICAL' && <AlertOctagon className="w-4 h-4 text-red-500 animate-bounce" />}
+                        <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">Current Risk Level</p>
+                    </div>
+                    <p className={`text-2xl font-bold ${getRiskColor(risk_level)}`}>
+                        {risk_level || "UNKNOWN"}
+                    </p>
+                </div>
+            </div>
+
+            <div className="flex-1 mt-4 min-h-[200px]">
+                <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                        <XAxis dataKey="name" stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
+                        <YAxis stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
+                        <Tooltip
+                            cursor={{ fill: '#334155' }}
+                            contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569', borderRadius: '8px', color: '#f8fafc' }}
+                        />
+                        <Bar dataKey="count" radius={[4, 4, 0, 0]}>
+                            {chartData.map((entry, index) => (
+                                <Cell key={`cell-${index}`} fill={entry.count > 50 ? '#f97316' : '#6366f1'} />
+                            ))}
+                        </Bar>
+                    </BarChart>
+                </ResponsiveContainer>
+            </div>
+        </div>
+    );
+}
+
+
+===== D:\New folder (2)\AegisAI\frontend\src\App.css =====
+#root {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 2rem;
+  text-align: center;
+}
+
+.logo {
+  height: 6em;
+  padding: 1.5em;
+  will-change: filter;
+  transition: filter 300ms;
+}
+.logo:hover {
+  filter: drop-shadow(0 0 2em #646cffaa);
+}
+.logo.react:hover {
+  filter: drop-shadow(0 0 2em #61dafbaa);
+}
+
+@keyframes logo-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  a:nth-of-type(2) .logo {
+    animation: logo-spin infinite 20s linear;
+  }
+}
+
+.card {
+  padding: 2em;
+}
+
+.read-the-docs {
+  color: #888;
+}
+
+
+===== D:\New folder (2)\AegisAI\frontend\src\App.jsx =====
+import { useState, useEffect } from "react";
+import axios from "axios";
+import { Activity } from "lucide-react";
+import LLMPanel from "./components/LLMPanel";
+import PredictionPanel from "./components/PredictionPanel";
+import ZoneRiskPanel from "./components/ZoneRiskPanel";
+import StaffPanel from "./components/StaffPanel";
+import LiveCamera from "./components/LiveCamera";
+import GuardTracker from "./components/GuardTracker";
+
+const API_BASE = "http://localhost:8000";
+
+function App() {
+  const [crowdData, setCrowdData] = useState(null);
+  const [predictionData, setPredictionData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+
+  // Fetch Live System Status
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [crowdRes, predRes] = await Promise.all([
+          axios.get(`${API_BASE}/crowd-data`),
+          axios.get(`${API_BASE}/prediction`)
+        ]);
+        setCrowdData(crowdRes.data);
+        setPredictionData(predRes.data);
+        setError(false);
+      } catch (err) {
+        console.error("API Error", err);
+        setError(true);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    // Initial fetch
+    fetchData();
+
+    // 2-second automated interval
+    const interval = setInterval(fetchData, 2000);
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <div className="min-h-screen bg-slate-900 text-slate-100 p-4 font-sans">
+
+      {/* Header */}
+      <header className="mb-6 flex items-center gap-3 pb-4 border-b border-slate-700">
+        <Activity className="h-8 w-8 text-blue-500" />
+        <h1 className="text-3xl font-bold tracking-tight">AI Crowd Intelligence Control Room</h1>
+        {error && <span className="ml-auto text-red-500 text-sm animate-pulse">Connection Lost</span>}
+      </header>
+
+      {/* Grid Layout - 3 Columns */}
+      <main className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+        {/* Left Column */}
+        <div className="flex flex-col gap-6">
+          <div className="flex-1">
+            <LLMPanel />
+          </div>
+          <div>
+            <PredictionPanel data={predictionData} loading={loading} />
+          </div>
+        </div>
+
+        {/* Center Column */}
+        <div className="flex flex-col gap-6">
+          <div className="flex-1">
+            <ZoneRiskPanel data={crowdData} loading={loading} />
+          </div>
+          <div>
+            <StaffPanel data={crowdData} loading={loading} />
+          </div>
+        </div>
+
+        {/* Right Column */}
+        <div className="flex flex-col h-full">
+          <LiveCamera totalPeople={crowdData?.total_people} />
+          <GuardTracker data={crowdData} loading={loading} />
+        </div>
+
+      </main>
+    </div>
+  );
+}
+
+export default App;
+
+
+===== D:\New folder (2)\AegisAI\frontend\src\index.css =====
+@import "tailwindcss";
+
+body {
+    background-color: #0f172a; /* tailwind slate-900 */
+    color: #f8fafc; /* tailwind slate-50 */
+    margin: 0;
+    padding: 0;
+    font-family: ui-sans-serif, system-ui, sans-serif;
+}
+
+
+===== D:\New folder (2)\AegisAI\frontend\src\main.jsx =====
+import { StrictMode } from 'react'
+import { createRoot } from 'react-dom/client'
+import './index.css'
+import App from './App.jsx'
+
+createRoot(document.getElementById('root')).render(
+  <StrictMode>
+    <App />
+  </StrictMode>,
+)
+
+
+===== D:\New folder (2)\AegisAI\requirements.txt =====
+fastapi
+uvicorn
+ultralytics
+torch
+torchvision
+opencv-python
+numpy
+pandas
+requests
+pydantic
+python-multipart
+
+
+===== D:\New folder (2)\AegisAI\README.md =====
+# AegisAI: Smart Crowd Monitoring System ðŸ›¡ï¸ðŸ‘¨â€ðŸ‘©â€ðŸ‘§â€ðŸ‘¦
+
+<div align="center">
+
+![Python](https://img.shields.io/badge/Python-3.9+-3776AB?style=for-the-badge&logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white)
+![React](https://img.shields.io/badge/React_19-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)
+![YOLOv8](https://img.shields.io/badge/YOLOv8-FF6F00?style=for-the-badge&logo=pytorch&logoColor=white)
+![Ollama](https://img.shields.io/badge/Ollama_Phi--3-black?style=for-the-badge&logo=ollama&logoColor=white)
+
+**A production-grade, multi-agent crowd intelligence and monitoring system designed for large venues like stadiums.**
+It combines real-time computer vision, predictive analytics, and a natural language interface
+to provide actionable insights for security and operations.
+
+[![LinkedIn](https://img.shields.io/badge/Pratheep_S-0077B5?style=flat&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/pratheep-s537)
+[![GitHub](https://img.shields.io/badge/pratheep537-181717?style=flat&logo=github&logoColor=white)](https://github.com/pratheep537)
+
+</div>
+
+---
+
+## ðŸ§  System Architecture
+
+```
+Video Input
+    â”‚
+    â–¼
+â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+â”‚                     AegisAI Core                        â”‚
+â”‚                                                         â”‚
+â”‚  â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”   â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”            â”‚
+â”‚  â”‚  Agent 1        â”‚   â”‚  Agent 2          â”‚            â”‚
+â”‚  â”‚  Crowd          â”‚â—„â”€â”€â”‚  LLM Command      â”‚            â”‚
+â”‚  â”‚  Intelligence   â”‚   â”‚  (Ollama / Phi-3) â”‚            â”‚
+â”‚  â””â”€â”€â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”€â”€â”˜   â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜            â”‚
+â”‚           â”‚                                             â”‚
+â”‚           â–¼                                             â”‚
+â”‚  â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”   â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”            â”‚
+â”‚  â”‚  Agent 3        â”‚   â”‚  Decision Layer   â”‚            â”‚
+â”‚  â”‚  Predictive     â”‚â”€â”€â–ºâ”‚  Risk + Guard     â”‚            â”‚
+â”‚  â”‚  Analytics      â”‚   â”‚  Allocation       â”‚            â”‚
+â”‚  â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜   â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜            â”‚
+â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
+    â”‚
+    â–¼
+React Dashboard  â”€â”€  REST API  â”€â”€  Live Video Feed
+```
+
+---
+
+## ðŸš€ Features
+
+- **Real-time Vision Pipeline** â€“ YOLOv8 for precise person detection + CSRNet for high-density crowd estimation
+- **Multi-Agent Architecture**:
+  - **Agent 1 (Crowd Intelligence)** â€“ Monitors real-time density, zones, and calculates risk levels
+  - **Agent 2 (LLM Command)** â€“ Interactive NLP interface to query system state (powered by Ollama/Phi-3)
+  - **Agent 3 (Predictive Analytics)** â€“ Forecasts future congestion trends based on historical data
+- **Zone-Based Analysis** â€“ Tracks crowd distribution across Left, Center, and Right zones
+- **Dynamic Risk Management** â€“ Classifies density as `LOW` / `MEDIUM` / `HIGH` and auto-calculates guard requirements (1 guard per 20 people)
+- **Interactive Dashboard** â€“ Modern React/Vite frontend with live camera feeds and real-time data visualization
+- **NLP Query Interface** â€“ Ask things like *"Which zone is crowded?"* or *"How many guards are needed?"*
+
+---
+
+## ðŸ› ï¸ Tech Stack
+
+| Layer | Tools |
+|---|---|
+| **Backend** | Python, FastAPI, Uvicorn, OpenCV, Pandas |
+| **Computer Vision & ML** | YOLOv8 (Ultralytics), CSRNet, PyTorch, Scikit-learn |
+| **Frontend** | React 19, Vite, TailwindCSS, Recharts, Lucide React |
+| **LLM Engine** | Ollama (Phi-3) â€” local, private command processing |
+
+---
+
+## ðŸ“‚ Project Structure
+
+```text
+.
+â”œâ”€â”€ backend/            # FastAPI server & multi-agent logic
+â”œâ”€â”€ frontend/           # React application
+â”œâ”€â”€ models/             # Detection & counting model scripts
+â”œâ”€â”€ assets/             # Images and demo files
+â”œâ”€â”€ requirements.txt    # Python dependencies
+â””â”€â”€ .gitignore
+```
+
+---
+
+## âš™ï¸ Installation
+
+### 1. Prerequisites
+- Python 3.9+
+- Node.js 18+
+- [Ollama](https://ollama.ai/) (for LLM features)
+
+### 2. Backend Setup
+
+```bash
+# Install dependencies
+pip install -r requirements.txt
+
+# Place model weights in /backend/models/
+# yolov8x.pt
+# CSRNet_pretrained.pth
+```
+
+### 3. Frontend Setup
+
+```bash
+cd frontend
+npm install
+```
+
+### 4. LLM Setup
+
+```bash
+ollama pull phi3
+```
+
+---
+
+## ðŸƒ Running the Application
+
+```bash
+# Terminal 1 â€” Backend
+cd backend
+python main.py
+
+# Terminal 2 â€” Frontend
+cd frontend
+npm run dev
+```
+
+---
+
+## ðŸ“Š API Endpoints
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/api/state` | Current crowd intelligence state |
+| `GET` | `/api/prediction` | Future congestion forecasts |
+| `POST` | `/api/llm/ask` | Query the system via natural language |
+| `GET` | `/api/video_feed` | Stream live detection frames |
+
+---
+
+## ðŸŒ Use Cases
+
+> AegisAI is built for any environment where crowd safety is non-negotiable.
+
+- Stadiums & sports arenas
+- Public events & concerts
+- Airports & railway stations
+- Smart city surveillance infrastructure
+
+---
+
+## ðŸŽ¯ Objective
+
+> To transform crowd monitoring from a **reactive** system into a **proactive AI-driven safety solution** â€” improving decision-making speed and preventing dangerous situations before they escalate.
+
+---
+
+## ðŸ“Œ Status
+
+```
+ðŸš§ Prototype / Under Active Development
+```
+
+---
+
+## ðŸ‘¤ Author
+
+<div align="center">
+
+**Pratheep S**
+*AI & Data Science Engineer*
+
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-0077B5?style=for-the-badge&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/pratheep-s537)
+[![GitHub](https://img.shields.io/badge/GitHub-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/pratheep537)
+
+</div>
+
+---
+
+## ðŸ“„ License
+
+MIT License
+
+
+===== D:\New folder (2)\AegisAI\frontend\package.json =====
+{
+  "name": "frontend",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "lint": "eslint .",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@tailwindcss/vite": "^4.2.1",
+    "axios": "^1.13.6",
+    "lucide-react": "^0.577.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "recharts": "^3.8.0",
+    "tailwindcss": "^4.2.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.1",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.1.1",
+    "eslint": "^9.39.1",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "eslint-plugin-react-refresh": "^0.4.24",
+    "globals": "^16.5.0",
+    "vite": "^7.3.1"
+  }
+}
+
+
+===== D:\New folder (2)\AegisAI\frontend\vite.config.js =====
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+import tailwindcss from '@tailwindcss/vite'
+
+export default defineConfig({
+  plugins: [
+    tailwindcss(),
+    react()
+  ],
+})
+

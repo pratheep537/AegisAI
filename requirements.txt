@@ -1,11 +1,8 @@
-fastapi
-uvicorn
-ultralytics
-torch
-torchvision
-opencv-python
+﻿fastapi
+uvicorn[standard]
+onnxruntime
+opencv-python-headless
 numpy
-pandas
 requests
 pydantic
 python-multipart
