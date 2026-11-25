@@ -1,136 +1,243 @@
-# AegisAI: Smart Crowd Monitoring System 🛡️👨‍👩‍👧‍👦
+# 🛡️ AegisAI — Smart Crowd Monitoring System
 
-<div align="center">
+AegisAI is an AI-powered crowd monitoring and intelligence system designed for large venues such as stadiums, railway stations, festivals, concerts, and public events.
 
-![Python](https://img.shields.io/badge/Python-3.9+-3776AB?style=for-the-badge&logo=python&logoColor=white)
-![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white)
-![React](https://img.shields.io/badge/React_19-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)
-![YOLOv8](https://img.shields.io/badge/YOLOv8-FF6F00?style=for-the-badge&logo=pytorch&logoColor=white)
-![Ollama](https://img.shields.io/badge/Ollama_Phi--3-black?style=for-the-badge&logo=ollama&logoColor=white)
+It combines real-time computer vision, crowd-density analysis, predictive analytics, multi-agent intelligence, and a dashboard to help operators monitor crowd conditions and make informed decisions.
 
-**A production-grade, multi-agent crowd intelligence and monitoring system designed for large venues like stadiums.**
-It combines real-time computer vision, predictive analytics, and a natural language interface
-to provide actionable insights for security and operations.
-
-[![LinkedIn](https://img.shields.io/badge/Pratheep_S-0077B5?style=flat&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/pratheep-s537)
-[![GitHub](https://img.shields.io/badge/pratheep537-181717?style=flat&logo=github&logoColor=white)](https://github.com/pratheep537)
-
-</div>
+**Project Status:** Prototype / Under Active Development
 
 ---
 
 ## 🧠 System Architecture
 
-```
+```text
 Video Input
-    │
-    ▼
-┌─────────────────────────────────────────────────────────┐
-│                     AegisAI Core                        │
-│                                                         │
-│  ┌─────────────────┐   ┌──────────────────┐            │
-│  │  Agent 1        │   │  Agent 2          │            │
-│  │  Crowd          │◄──│  LLM Command      │            │
-│  │  Intelligence   │   │  (Ollama / Phi-3) │            │
-│  └────────┬────────┘   └──────────────────┘            │
-│           │                                             │
-│           ▼                                             │
-│  ┌─────────────────┐   ┌──────────────────┐            │
-│  │  Agent 3        │   │  Decision Layer   │            │
-│  │  Predictive     │──►│  Risk + Guard     │            │
-│  │  Analytics      │   │  Allocation       │            │
-│  └─────────────────┘   └──────────────────┘            │
-└─────────────────────────────────────────────────────────┘
-    │
-    ▼
-React Dashboard  ──  REST API  ──  Live Video Feed
+     |
+     v
++----------------------------------+
+|          AegisAI Core            |
+|                                  |
+|  +---------------------------+   |
+|  | Crowd Intelligence Agent  |   |
+|  +-------------+-------------+   |
+|                |                 |
+|  +-------------v-------------+   |
+|  | Predictive Analytics Agent|   |
+|  +-------------+-------------+   |
+|                |                 |
+|  +-------------v-------------+   |
+|  | Risk & Decision Layer     |   |
+|  | Resource Allocation       |   |
+|  +-------------+-------------+   |
+|                |                 |
+|  +-------------v-------------+   |
+|  | LLM Command Agent         |   |
+|  | Ollama / Phi-3            |   |
+|  +---------------------------+   |
++----------------------------------+
+                 |
+                 v
+        React Dashboard
+                 |
+          FastAPI REST API
 ```
 
 ---
 
 ## 🚀 Features
 
-- **Real-time Vision Pipeline** – YOLOv8 for precise person detection + CSRNet for high-density crowd estimation
-- **Multi-Agent Architecture**:
-  - **Agent 1 (Crowd Intelligence)** – Monitors real-time density, zones, and calculates risk levels
-  - **Agent 2 (LLM Command)** – Interactive NLP interface to query system state (powered by Ollama/Phi-3)
-  - **Agent 3 (Predictive Analytics)** – Forecasts future congestion trends based on historical data
-- **Zone-Based Analysis** – Tracks crowd distribution across Left, Center, and Right zones
-- **Dynamic Risk Management** – Classifies density as `LOW` / `MEDIUM` / `HIGH` and auto-calculates guard requirements (1 guard per 20 people)
-- **Interactive Dashboard** – Modern React/Vite frontend with live camera feeds and real-time data visualization
-- **NLP Query Interface** – Ask things like *"Which zone is crowded?"* or *"How many guards are needed?"*
+- **Real-Time Crowd Monitoring** – Monitor crowd activity using computer vision.
+- **YOLOv8 Detection** – Detect people in video frames.
+- **Crowd Density Analysis** – Analyze crowd density and congestion levels.
+- **CSRNet Integration** – Support for high-density crowd estimation.
+- **Multi-Agent Architecture**
+  - Crowd Intelligence Agent
+  - Predictive Analytics Agent
+  - LLM Command Agent
+  - Risk and Decision Agent
+  - Resource Allocation Agent
+- **Zone-Based Analysis** – Monitor Left, Center, and Right crowd zones.
+- **Risk Management** – Classify crowd risk levels as LOW, MEDIUM, and HIGH.
+- **Resource Allocation** – Estimate guard requirements based on crowd count.
+- **Predictive Analytics** – Analyze crowd trends and forecast congestion.
+- **Interactive Dashboard** – View crowd information and visualizations.
+- **Natural Language Interface** – Ask questions about crowd conditions.
+- **Privacy-Aware Monitoring** – Face-blurring configuration with no facial recognition.
+
+---
+
+## 🏟️ Multi-Venue Presets
+
+AegisAI supports venue-specific configuration presets for different crowd environments.
+
+Preset configurations are located in:
+
+```text
+backend/config/presets/
+```
+
+### Available Presets
+
+| Configuration | Venue | Purpose |
+|---|---|---|
+| `stadium.json` | Stadium | Concourse and gate monitoring |
+| `railway_station.json` | Railway Station | Platform and passenger-flow monitoring |
+| `festival_gate.json` | Festival | Entry queues and crowd-flow monitoring |
+
+### Preset Directory
+
+```text
+backend/config/presets/
+├── stadium.json
+├── railway_station.json
+└── festival_gate.json
+```
+
+### Configuration Parameters
+
+Each venue configuration includes:
+
+- `venue_id` – Unique venue identifier.
+- `venue_name` – Venue name.
+- `camera` – Video source, FPS, and privacy settings.
+- `calibration` – Camera calibration and world dimensions.
+- `thresholds` – Crowd-density and physics-related parameters.
+- `zones` – Monitoring areas, gates, and exits.
+- `tripwires` – Entry and exit flow monitoring lines.
+- `alerts` – Alert webhook and cooldown settings.
+
+### Loading a Preset
+
+```python
+from physics.crowd_physics import CrowdPhysicsEngine
+
+engine = CrowdPhysicsEngine.from_file(
+    "backend/config/presets/stadium.json"
+)
+```
+
+Change the configuration path to load a different venue preset.
+
+> Preset values are sample configurations intended for development and testing. Real-world deployment requires venue-specific calibration and review by qualified crowd-safety professionals.
 
 ---
 
 ## 🛠️ Tech Stack
 
-| Layer | Tools |
+| Layer | Technologies |
 |---|---|
-| **Backend** | Python, FastAPI, Uvicorn, OpenCV, Pandas |
-| **Computer Vision & ML** | YOLOv8 (Ultralytics), CSRNet, PyTorch, Scikit-learn |
-| **Frontend** | React 19, Vite, TailwindCSS, Recharts, Lucide React |
-| **LLM Engine** | Ollama (Phi-3) — local, private command processing |
+| Backend | Python, FastAPI, Uvicorn |
+| Computer Vision | OpenCV, YOLOv8 |
+| Crowd Estimation | CSRNet, PyTorch |
+| Data Processing | Pandas, NumPy |
+| Machine Learning | Scikit-learn |
+| Frontend | React, Vite |
+| Visualization | Recharts |
+| LLM | Ollama, Phi-3 |
+| Configuration | JSON |
+| Containerization | Docker, Docker Compose |
 
 ---
 
 ## 📂 Project Structure
 
 ```text
-.
-├── backend/            # FastAPI server & multi-agent logic
-├── frontend/           # React application
-├── models/             # Detection & counting model scripts
-├── assets/             # Images and demo files
-├── requirements.txt    # Python dependencies
-└── .gitignore
+AegisAI/
+├── backend/
+│   ├── config/
+│   │   ├── presets/
+│   │   │   ├── stadium.json
+│   │   │   ├── railway_station.json
+│   │   │   └── festival_gate.json
+│   │   └── venue_config.json
+│   ├── physics/
+│   ├── agents/
+│   ├── models/
+│   ├── data/
+│   └── main.py
+├── frontend/
+├── tests/
+├── requirements.txt
+├── Dockerfile.backend
+├── docker-compose.yml
+└── README.md
 ```
 
 ---
 
 ## ⚙️ Installation
 
-### 1. Prerequisites
+### Prerequisites
+
 - Python 3.9+
 - Node.js 18+
-- [Ollama](https://ollama.ai/) (for LLM features)
+- npm
+- Git
+- Docker (optional)
+- Ollama (optional for LLM features)
+
+### 1. Clone the Repository
+
+```bash
+git clone https://github.com/pratheep537/AegisAI.git
+cd AegisAI
+```
 
 ### 2. Backend Setup
 
-```bash
-# Install dependencies
-pip install -r requirements.txt
+Install Python dependencies:
 
-# Place model weights in /backend/models/
-# yolov8x.pt
-# CSRNet_pretrained.pth
+```bash
+pip install -r requirements.txt
+```
+
+Run the backend:
+
+```bash
+cd backend
+python main.py
 ```
 
 ### 3. Frontend Setup
 
+Open a separate terminal:
+
 ```bash
 cd frontend
 npm install
+npm run dev
 ```
 
-### 4. LLM Setup
+### 4. LLM Setup (Optional)
+
+Install Ollama and download the Phi-3 model:
 
 ```bash
 ollama pull phi3
 ```
 
+Start Ollama before using LLM-related features.
+
 ---
 
-## 🏃 Running the Application
+## 🐳 Docker Setup
+
+Run the application using Docker Compose:
 
 ```bash
-# Terminal 1 — Backend
-cd backend
-python main.py
-
-# Terminal 2 — Frontend
-cd frontend
-npm run dev
+docker compose up --build
 ```
+
+Stop the application:
+
+```bash
+docker compose down
+```
+
+Docker configuration:
+
+- `Dockerfile.backend`
+- `docker-compose.yml`
 
 ---
 
@@ -138,49 +245,83 @@ npm run dev
 
 | Method | Endpoint | Description |
 |---|---|---|
-| `GET` | `/api/state` | Current crowd intelligence state |
-| `GET` | `/api/prediction` | Future congestion forecasts |
-| `POST` | `/api/llm/ask` | Query the system via natural language |
-| `GET` | `/api/video_feed` | Stream live detection frames |
+| GET | `/api/state` | Current crowd intelligence state |
+| GET | `/api/prediction` | Crowd prediction information |
+| POST | `/api/llm/ask` | Ask the system using natural language |
+| GET | `/api/video_feed` | Video feed endpoint |
+
+FastAPI Swagger documentation:
+
+```text
+http://localhost:8000/docs
+```
+
+The actual API port depends on the backend configuration.
+
+---
+
+## 📈 Crowd Monitoring
+
+AegisAI supports configuration of:
+
+- Crowd density thresholds
+- Monitoring zones
+- Entry and exit tripwires
+- Crowd-flow analysis
+- Turbulence-pressure parameters
+- Time-to-critical-density warning parameters
+- Alert cooldown periods
+
+These parameters should be calibrated according to the monitored venue and camera setup.
+
+---
+
+## 🔐 Privacy
+
+AegisAI follows privacy-aware crowd monitoring principles:
+
+- Face-blurring configuration is supported.
+- Facial recognition is not used.
+- Privacy-related camera settings are configurable.
+- Video sources can be configured according to deployment requirements.
+- Deployment should comply with applicable privacy laws and venue policies.
 
 ---
 
 ## 🌍 Use Cases
 
-> AegisAI is built for any environment where crowd safety is non-negotiable.
-
-- Stadiums & sports arenas
-- Public events & concerts
-- Airports & railway stations
-- Smart city surveillance infrastructure
+- Stadiums and sports arenas
+- Railway stations
+- Festivals and concerts
+- Public gatherings
+- Event entrance gates
+- Smart-city crowd monitoring
 
 ---
 
 ## 🎯 Objective
 
-> To transform crowd monitoring from a **reactive** system into a **proactive AI-driven safety solution** — improving decision-making speed and preventing dangerous situations before they escalate.
+To transform crowd monitoring from a reactive process into a proactive AI-driven intelligence system that helps identify congestion trends, monitor crowd conditions, and support timely operational decision-making.
 
 ---
 
-## 📌 Status
+## 📌 Development Status
 
+```text
+Prototype / Under Active Development
 ```
-🚧 Prototype / Under Active Development
-```
+
+AegisAI is an ongoing project. Features, models, configurations, and API endpoints may change during development.
 
 ---
 
 ## 👤 Author
 
-<div align="center">
+**Pratheep S**  
+AI & Data Science Engineer
 
-**Pratheep S**
-*AI & Data Science Engineer*
-
-[![LinkedIn](https://img.shields.io/badge/LinkedIn-0077B5?style=for-the-badge&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/pratheep-s537)
-[![GitHub](https://img.shields.io/badge/GitHub-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/pratheep537)
-
-</div>
+- LinkedIn: [Pratheep S](https://www.linkedin.com/in/pratheep-s537)
+- GitHub: [pratheep537](https://github.com/pratheep537)
 
 ---
 
